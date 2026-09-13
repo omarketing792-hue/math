@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ManimGL Studio — Math Animation Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: { ink:"#0a0b0f", panel:"#11141c", edge:"#1e2430", accent:"#5b8def" },
+    fontFamily: { sans:["Inter","sans-serif"], mono:["JetBrains Mono","monospace"] }
+  }}
+}
+</script>
+<style>
+  html,body{height:100%;margin:0;background:#0a0b0f;color:#e6e9ef;}
+  *{box-sizing:border-box;}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#1e2430;border-radius:8px}
+  .spinner{width:32px;height:32px;border:3px solid #1e2430;border-top-color:#5b8def;border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .toast{position:fixed;bottom:24px;right:24px;z-index:1000;padding:12px 18px;border-radius:10px;font-size:13px;background:#11141c;border:1px solid #1e2430;color:#e6e9ef;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+</style>
+</head>
+<body>
+
+<div class="h-full flex flex-col">
+  <!-- TOOLBAR -->
+  <header class="h-14 flex items-center justify-between px-5 border-b border-edge bg-panel shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-accent grid place-items-center font-bold text-white text-lg">M</div>
+      <div>
+        <div class="font-semibold text-sm">ManimGL Studio</div>
+        <div class="text-[11px] text-gray-500">Math animation engine</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div id="healthBadge" class="text-[11px] px-2.5 py-1 rounded-md border border-edge text-gray-500 font-mono">checking...</div>
+      <select id="quality" class="bg-ink border border-edge rounded-md px-3 py-1.5 text-sm outline-none focus:border-accent">
+        <option value="low">Low · 480p</option>
+        <option value="medium" selected>Medium · 720p</option>
+        <option value="high">High · 1080p</option>
+        <option value="4k">4K · 2160p</option>
+      </select>
+      <button id="renderBtn" class="flex items-center gap-2 bg-accent hover:brightness-110 disabled:opacity-50 px-4 py-1.5 rounded-md text-sm font-medium transition">
+        <span id="renderIcon">▶</span>
+        <span id="renderText">Render</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div class="flex-1 flex overflow-hidden">
+    <!-- SNIPPETS -->
+    <aside class="w-60 border-r border-edge bg-panel flex flex-col shrink-0">
+      <div class="h-9 flex items-center px-4 border-b border-edge text-xs text-gray-500 font-mono">📚 snippets</div>
+      <div id="snippets" class="flex-1 overflow-y-auto p-2 space-y-1.5"></div>
+    </aside>
+
+    <div class="flex-1 grid grid-cols-2 min-w-0">
+      <!-- EDITOR -->
+      <div class="border-r border-edge flex flex-col min-w-0">
+        <div class="h-9 flex items-center justify-between px-4 border-b border-edge text-xs text-gray-500 font-mono">
+          <span>scene.py</span><span class="text-[10px]">Python · ManimGL</span>
+        </div>
+        <div id="editor" class="flex-1 min-h-0"></div>
+      </div>
+
+      <!-- PREVIEW -->
+      <div class="flex flex-col min-w-0 bg-ink">
+        <div class="h-9 flex items-center justify-between px-4 border-b border-edge text-xs text-gray-500 font-mono">
+          <span>preview</span>
+          <div class="flex items-center gap-3">
+            <button id="logToggle" class="hidden hover:text-accent text-[11px]">📋 log</button>
+            <button id="dlBtn" class="hidden hover:text-accent text-accent text-[11px]">⬇ download</button>
+          </div>
+        </div>
+        <div id="preview" class="flex-1 grid place-items-center p-6 min-h-0 overflow-auto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+//  👇 YAHAN APNA RENDER BACKEND URL DAALO 👇
+// ═══════════════════════════════════════════════════════════
+const BACKEND_URL = "https://YOUR-APP-NAME.onrender.com";
+// ═══════════════════════════════════════════════════════════
+
+const DEFAULT_CODE = `from manimlib import *
+
+class MainScene(Scene):
+    def construct(self):
+        title = Text("ManimGL Studio", font_size=72)
+        self.play(Write(title))
+        self.wait(0.5)
+        self.play(title.animate.to_edge(UP))
+
+        eq = MathTex(r"\\\\int_0^\\\\infty e^{-x^2} dx = \\\\frac{\\\\sqrt{\\\\pi}}{2}", font_size=60)
+        self.play(Write(eq))
+        self.wait(1)
+        self.play(FadeOut(eq))
+
+        circle = Circle(radius=1.5, color=BLUE)
+        circle.set_fill(BLUE, opacity=0.4)
+        square = Square(side_length=2.5, color=RED)
+        square.set_fill(RED, opacity=0.4)
+        self.play(ShowCreation(circle))
+        self.wait(0.5)
+        self.play(ReplacementTransform(circle, square))
+        self.wait(1)
+        self.play(FadeOut(square), FadeOut(title))
+`;
+
+const SNIPPETS = [
+  {label:"LaTeX Equation", code:'eq = MathTex(r"\\\\int_0^\\\\infty e^{-x^2} dx = \\\\frac{\\\\sqrt{\\\\pi}}{2}")\nself.play(Write(eq))\nself.wait(1)'},
+  {label:"Circle", code:'c = Circle(radius=1.5, color=BLUE)\nc.set_fill(BLUE, opacity=0.4)\nself.play(ShowCreation(c))'},
+  {label:"Morph", code:'circle = Circle(radius=1.5, color=BLUE)\nsquare = Square(side_length=2.5, color=RED)\nself.play(ShowCreation(circle))\nself.play(ReplacementTransform(circle, square))'},
+  {label:"Text Fade In", code:'t = Text("Hello Manim", font_size=48)\nself.play(FadeIn(t, shift=UP))\nself.wait(1)'},
+  {label:"Plot Function", code:'ax = Axes(x_range=[-3,3,1], y_range=[-1,5,1])\ngraph = ax.get_graph(lambda x: x**2, color=YELLOW)\nself.play(ShowCreation(ax), ShowCreation(graph))'},
+  {label:"Move Along Path", code:'dot = Dot(color=YELLOW)\npath = Arc(radius=2, angle=PI)\nself.add(dot)\nself.play(MoveAlongPath(dot, path), run_time=2)'},
+  {label:"Rotate", code:'sq = Square(color=GREEN)\nself.play(ShowCreation(sq))\nself.play(Rotate(sq, angle=PI/2))'},
+  {label:"Wait", code:'self.wait(2)'}
+];
+
+let state = { code:DEFAULT_CODE, loading:false, videoUrl:null, error:null, log:null, showLog:false, editor:null };
+
+const $ = id => document.getElementById(id);
+const previewEl=$("preview"), renderBtn=$("renderBtn"), renderText=$("renderText"),
+      renderIcon=$("renderIcon"), qualityEl=$("quality"), dlBtn=$("dlBtn"),
+      logToggle=$("logToggle"), healthBadge=$("healthBadge");
+
+function toast(msg,t=2500){
+  const el=document.createElement("div"); el.className="toast"; el.textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),t);
+}
+function escapeHtml(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+
+// ── SNIPPETS ──
+function renderSnippets(){
+  const box=$("snippets"); box.innerHTML="";
+  SNIPPETS.forEach(s=>{
+    const b=document.createElement("button");
+    b.className="w-full text-left p-2.5 rounded-md border border-edge hover:border-accent hover:bg-ink transition";
+    b.innerHTML=`<div class="text-xs font-medium text-gray-300">${s.label}</div>
+                 <div class="text-[10px] text-gray-600 font-mono truncate mt-1">${s.code.split("\\n")[0].slice(0,40)}</div>`;
+    b.onclick=()=>{
+      if(state.editor){
+        const sel=state.editor.getSelection();
+        state.editor.executeEdits("snip",[{range:sel,text:"\n"+s.code+"\n",forceMoveMarkers:true}]);
+        state.editor.pushUndoStop(); state.editor.focus(); toast("Snippet added");
+      }
+    };
+    box.appendChild(b);
+  });
+}
+
+// ── PREVIEW ──
+function renderPreview(){
+  previewEl.innerHTML="";
+  dlBtn.classList.add("hidden"); logToggle.classList.add("hidden");
+
+  if(state.loading){
+    previewEl.innerHTML=`<div class="flex flex-col items-center gap-3">
+      <div class="spinner"></div>
+      <div class="text-sm text-gray-400">ManimGL rendering...</div>
+      <div class="text-xs text-gray-600">30s – 5 min</div></div>`;
+    return;
+  }
+  if(state.error){
+    previewEl.innerHTML=`<div class="max-w-2xl w-full bg-red-950/30 border border-red-900/60 rounded-lg p-4">
+      <div class="font-semibold text-red-300 mb-2 text-sm">⚠ Render failed</div>
+      <pre class="text-red-200/90 whitespace-pre-wrap font-mono text-xs max-h-96 overflow-auto">${escapeHtml(state.error)}</pre></div>`;
+    return;
+  }
+  if(state.showLog && state.log){
+    previewEl.innerHTML=`<pre class="w-full max-w-3xl max-h-full overflow-auto bg-[#0d1017] border border-edge rounded-lg p-4 text-xs font-mono text-gray-400 whitespace-pre-wrap">${escapeHtml(state.log)}</pre>`;
+    logToggle.textContent="🎬 preview"; logToggle.classList.remove("hidden");
+    return;
+  }
+  if(state.videoUrl){
+    previewEl.innerHTML=`<video src="${state.videoUrl}" controls autoplay loop class="max-w-full max-h-full rounded-lg shadow-2xl border border-edge"></video>`;
+    dlBtn.classList.remove("hidden");
+    if(state.log){ logToggle.classList.remove("hidden"); logToggle.textContent="📋 log"; }
+    return;
+  }
+  previewEl.innerHTML=`<div class="flex flex-col items-center gap-3 text-gray-600">
+    <div class="text-4xl">🎬</div><div class="text-sm">Write code, hit Render</div></div>`;
+}
+
+// ── RENDER ──
+async function doRender(){
+  if(state.loading) return;
+  if(!BACKEND_URL || BACKEND_URL.includes("YOUR-APP-NAME")){
+    state.error="Backend URL set nahi kiya. index.html me BACKEND_URL update karo.";
+    renderPreview(); return;
+  }
+  state.loading=true; state.error=null; state.videoUrl=null; state.log=null; state.showLog=false;
+  updateRenderButton(); renderPreview();
+
+  try{
+    const res=await fetch(`${BACKEND_URL}/api/render`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({code:state.code, quality:qualityEl.value})
+    });
+    if(!res.ok){
+      const data=await res.json().catch(()=>({}));
+      throw new Error(data.detail || `HTTP ${res.status}`);
+    }
+    const data=await res.json();
+    state.videoUrl=BACKEND_URL + data.video_url;
+    state.log=data.log;
+    toast("Render complete!");
+  }catch(e){
+    state.error=e.message || String(e); toast("Render failed");
+  }finally{
+    state.loading=false; updateRenderButton(); renderPreview();
+  }
+}
+
+function updateRenderButton(){
+  renderBtn.disabled=state.loading;
+  renderText.textContent=state.loading?"Rendering...":"Render";
+  renderIcon.textContent=state.loading?"⏳":"▶";
+}
+
+// ── DOWNLOAD ──
+dlBtn.onclick=async()=>{
+  if(!state.videoUrl) return;
+  try{
+    const r=await fetch(state.videoUrl); const blob=await r.blob();
+    const url=URL.createObjectURL(blob); const a=document.createElement("a");
+    a.href=url; a.download="animation.mp4"; document.body.appendChild(a);
+    a.click(); a.remove(); URL.revokeObjectURL(url); toast("Downloaded");
+  }catch(e){ toast("Download failed"); }
+};
+logToggle.onclick=()=>{ state.showLog=!state.showLog; renderPreview(); };
+
+// ── HEALTH ──
+async function checkHealth(){
+  if(!BACKEND_URL || BACKEND_URL.includes("YOUR-APP-NAME")){
+    healthBadge.textContent="⚠ backend URL set karo";
+    healthBadge.className="text-[11px] px-2.5 py-1 rounded-md border border-yellow-900 text-yellow-400 font-mono";
+    return;
+  }
+  try{
+    const r=await fetch(`${BACKEND_URL}/api/health`); const d=await r.json();
+    if(d.manimgl_installed){
+      healthBadge.textContent="✓ manimgl ready";
+      healthBadge.className="text-[11px] px-2.5 py-1 rounded-md border border-green-900 text-green-400 font-mono bg-green-950/30";
+    }else{
+      healthBadge.textContent="✗ manimgl missing";
+      healthBadge.className="text-[11px] px-2.5 py-1 rounded-md border border-red-900 text-red-400 font-mono bg-red-950/30";
+    }
+  }catch{
+    healthBadge.textContent="✗ backend offline";
+    healthBadge.className="text-[11px] px-2.5 py-1 rounded-md border border-red-900 text-red-400 font-mono bg-red-950/30";
+  }
+}
+
+// ── MONACO ──
+require.config({ paths:{ vs:"https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs" }});
+require(["vs/editor/editor.main"],()=>{
+  monaco.editor.defineTheme("manim-dark",{
+    base:"vs-dark", inherit:true,
+    rules:[
+      {token:"comment",foreground:"6b7280",fontStyle:"italic"},
+      {token:"string",foreground:"86efac"},
+      {token:"keyword",foreground:"5b8def",fontStyle:"bold"},
+      {token:"number",foreground:"fbbf24"}
+    ],
+    colors:{
+      "editor.background":"#0d1017","editor.lineHighlightBackground":"#141821",
+      "editorLineNumber.foreground":"#3a4150","editorLineNumber.activeForeground":"#5b8def",
+      "editorCursor.foreground":"#5b8def","editor.selectionBackground":"#1e2430"
+    }
+  });
+  state.editor=monaco.editor.create($("editor"),{
+    value:DEFAULT_CODE, language:"python", theme:"manim-dark",
+    fontSize:13.5, fontFamily:"JetBrains Mono, Menlo, monospace",
+    minimap:{enabled:false}, scrollBeyondLastLine:false,
+    padding:{top:14,bottom:14}, lineNumbersMinChars:3,
+    automaticLayout:true, tabSize:4, renderLineHighlight:"line"
+  });
+  state.editor.onDidChangeModelContent(()=>{ state.code=state.editor.getValue(); });
+});
+
+// ── INIT ──
+renderSnippets(); renderPreview(); checkHealth();
+renderBtn.onclick=doRender;
+document.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){ e.preventDefault(); doRender(); }
+});
+</script>
+</body>
+</html>
